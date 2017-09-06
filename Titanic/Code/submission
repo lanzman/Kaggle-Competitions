@@ -1,0 +1,138 @@
+import os
+import numpy as np
+import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.style.use('ggplot')
+
+import seaborn as sns
+#from ggplot import ggplot
+#from ggplot import geom_bar
+#from ggplot import aes
+
+# Pulls in all data for analysis
+directory = "I:\My Documents\Data Science\Kaggle\Titanic\Data"
+trainFile = './train.csv'
+testFile = './test.csv'
+os.chdir(directory)
+trainData = pd.read_csv(trainFile)
+testData = pd.read_csv(testFile)
+
+
+#Gets some information on the training set
+trainData.info()
+trainData.describe()
+
+#Split up name into different features
+
+import re
+
+# A function to get the title from a name.
+def get_title(name):
+    # Use a regular expression to search for a title.  Titles always consist of capital and lowercase letters, and end with a period.
+    title_search = re.search(' ([A-Za-z]+)\.', name)
+    # If the title exists, extract and return it.
+    if title_search:
+        return title_search.group(1)
+
+# Get all the titles and print how often each one occurs.
+trainData['Title'] = trainData['Name'].apply(get_title)
+print(trainData.Title)
+
+# A function to get the LastName from a name.
+def get_lastname(name):
+    # Use a regular expression to search for a last name.  Last names always consist of capital and lowercase letters, and end with a comma.
+    lastname_search = re.search('([A-Za-z]+)\,', name)
+    # If the title exists, extract and return it.
+    if lastname_search:
+        return lastname_search.group(1)
+
+# Get all the titles and print how often each one occurs.
+trainData['LastName'] = trainData['Name'].apply(get_lastname)
+print(trainData.LastName)
+
+print(trainData.groupby('LastName').count())
+
+####Trying to do something with the title and last name for predicting anything!!!
+
+
+
+
+#Find multiple Cabin Fares
+trainData[trainData.Cabin.str.contains('F ')]
+
+#Begin analysis on Fare and Cabin data since a majority is missing
+trainData.Cabin.unique()
+FareCabin = trainData[['Fare', 'Cabin', 'Embarked']].copy()
+
+#Drops NAs for analysis
+FareCabin = FareCabin.dropna()
+
+#Removes all F's that have extra space assuming this is a typo in the data
+FareCabin.Cabin = FareCabin.Cabin.str.replace('F ', '')
+
+#Pull out only the first character in the rows of the array and create new column
+FareCabin['CabinCat']= FareCabin.Cabin.astype(str).str[0]
+
+#Group by Cabin then sort in order for bar chart
+CabinGroup = FareCabin.groupby('CabinCat').count().sort_values('Cabin', ascending=False)
+sns.countplot(x = 'CabinCat', data = FareCabin, order = CabinGroup.index)
+
+#Find Cabins with multiple tickets and modify Fares
+FareCabin.Fare[FareCabin.Cabin.str.contains(' ')] = FareCabin.Fare / (FareCabin[FareCabin.Cabin.str.contains(' ')].Cabin.str.count(' ') + 1)
+
+#Check for correlation between Embarked and CabinCat
+#THERE IS NO CORRELATION, perform machine learning for prediction
+FareCabin.groupby('CabinCat').count()
+EmbarkedCabin = pd.get_dummies(FareCabin, prefix = 'Embarked', columns= ['Embarked']).groupby('CabinCat').sum()
+EmbarkedCabin.drop('Fare', axis=1, inplace=True)
+sns.barplot(x = EmbarkedCabin.index, y = 'Embarked_C', data= EmbarkedCabin)
+
+FareCabin[FareCabin.Cabin.astype(str).str[0] == 'T']
+FareCabin[FareCabin.Cabin.astype(str).str[0] == 'G']
+
+FareCabin.info()
+
+#Create boxplot to show distribution of Cabin Fare Prices
+fig, ax = plt.subplots(nrows=1, ncols=2,sharey=True)
+sns.swarmplot(x = 'CabinCat', y = 'Fare', data= FareCabin, ax = ax[0])
+sns.boxplot(x = 'CabinCat', y = 'Fare', data = FareCabin, ax = ax[1])
+plt.show()
+
+survivalrate = np.count_nonzero(trainData.Survived) / np.size(trainData,0)
+print(survivalrate)
+
+pclasssummary = trainData[['Pclass', 'Survived']].groupby('Pclass').count()
+print(pclasssummary)
+
+plt.bar(pclasssummary.index,pclasssummary.Survived)
+plt.show()
+
+pclasssummary.index
+
+#mods to traindata for machine learning
+
+#creates a copy of the training data without reference
+modtrainData = trainData.copy()
+modtrainData.info()
+
+#set blanks for age to median age for each sex
+modtrainData.Age[modtrainData.Age.isnull() == True] = modtrainData.Age.median()
+modtrainData.Embarked[modtrainData.Embarked.isnull() == True] = 'S'
+
+#verifies copy worked correctly
+modtrainData[['Embarked','Survived']].groupby('Embarked').count()
+trainData[['Embarked','Survived']].groupby('Embarked').count()
+
+#gets info to verify all blanks have been resolved
+modtrainData.info()
+
+y = modtrainData.Survived[:]
+X = modtrainData.drop(['Survived', 'Name', 'Cabin', 'Ticket'], axis=1)[:]
+X = X.as_matrix()
+
+
+
+
+
+
